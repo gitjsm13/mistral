@@ -1,10 +1,10 @@
 # Auto Bildersuche 🚗
 
-Eine Web-App, die Bilder von Autos nach Modell sucht und verschiedene Versionen anzeigt: Prototypen, erste Serienmodelle und Facelifts.
+Eine Web-App, die **spezifische Bilder von einem konkreten Automodell** sucht und verschiedene Versionen anzeigt: Prototypen, erste Serienmodelle und Facelifts.
 
 ## Features
 
-- 🔍 Suche nach jedem Automodell
+- 🔍 **Präzise Suche nach dem konkreten Modell** - Keine allgemeinen Markenbilder mehr!
 - 📸 Bis zu 10 Bilder pro Kategorie
 - 🏷️ Drei Kategorien:
   - Prototypen (Konzeptfahrzeuge)
@@ -21,8 +21,8 @@ Eine Web-App, die Bilder von Autos nach Modell sucht und verschiedene Versionen 
    - Die App funktioniert sofort mit der Wikipedia API (kein API-Key erforderlich!)
 
 2. **Beispiel-Suchen:**
-   - BMW 3 Series
    - Volkswagen Golf
+   - BMW 3 Series
    - Mercedes-Benz C-Class
    - Porsche 911
    - Ford Mustang
@@ -39,7 +39,7 @@ auto-bildersuche/
 
 ## Verwendung
 
-1. Gib ein Automodell in das Suchfeld ein (z.B. "BMW 3 Series", "Volkswagen Golf")
+1. Gib ein **konkretes Automodell** in das Suchfeld ein
 2. Klicke auf "Suchen" oder drücke Enter
 3. Warte einen Moment, während die App Wikipedia durchsucht
 4. Wechsle zwischen den Kategorien mit den Tabs
@@ -51,27 +51,48 @@ auto-bildersuche/
 - **Design:** Modernes, responsives Design mit Inter Font
 - **Browser-Unterstützung:** Alle modernen Browser
 
-### Wikipedia API Details
+### Verbesserte Suchlogik
 
-Die App nutzt folgende Wikipedia API-Endpunkte:
-- `action=query&list=search` - Suche nach relevanten Wikipedia-Seiten
-- `action=query&prop=images` - Hole Bilder von einer Seite
-- `action=query&prop=imageinfo` - Hole Metadaten zu Bildern
+Die App nutzt jetzt eine **intelligente Suchstrategie**, um nur Bilder des konkreten Modells zu finden:
 
-## Tipps für bessere Suchergebnisse
+1. **Exakte Seiten-Suche:** Zuerst wird versucht, die genaue Wikipedia-Seite für das Modell zu finden
+2. **Modellname-Mappings:** Automatische Umwandlung deutscher Modellnamen in englische (z.B. "BMW 3er" → "BMW 3 Series")
+3. **Bildfilterung:** Nur Bilder, die den Modellnamen oder relevante Begriffe enthalten, werden angezeigt
+4. **Kategoriespezifische Suche:** Jede Kategorie hat eigene Suchbegriffe für bessere Ergebnisse
 
-1. **Englische Begriffe verwenden:** Die Wikipedia-Suche funktioniert am besten mit englischen Begriffen
-   - ❌ "Volkswagen Golf"
-   - ✅ "Volkswagen Golf" oder "Golf Mk1"
+## Tipps für beste Suchergebnisse
 
-2. **Spezifische Modellbezeichnungen:**
-   - "BMW E30" statt nur "BMW 3er"
-   - "Mercedes-Benz W124"
-   - "Porsche 993"
+### ✅ Gute Suchbegriffe:
+- **Volkswagen Golf** (nicht nur "VW" oder "Volkswagen")
+- **BMW 3 Series** (nicht "BMW 3er" - wird aber automatisch umgewandelt)
+- **Mercedes-Benz C-Class**
+- **Porsche 911**
+- **Ford Mustang**
+- **Toyota Corolla**
 
-3. **Jahrgang angeben:**
-   - "Ford Mustang 1965"
-   - "Toyota Corolla 1980"
+### 🔧 Spezifische Modellbezeichnungen:
+- **Volkswagen Golf Mk1** (für die erste Generation)
+- **BMW E30** (für den 3er der 80er)
+- **Mercedes-Benz W124** (für die E-Klasse Baureihe)
+- **Porsche 993** (für den 911er der 90er)
+
+### 🌐 Sprach-Tipps:
+- **Englische Begriffe** funktionieren am besten auf Wikipedia
+- Die App wandelt automatisch viele deutsche Begriffe um:
+  - "BMW 3er" → "BMW 3 Series"
+  - "Mercedes C-Klasse" → "Mercedes-Benz C-Class"
+  - "VW Golf" → "Volkswagen Golf"
+
+## Problembehebung
+
+### Keine Ergebnisse gefunden?
+- Versuchen Sie den **englischen Modellnamen**
+- Geben Sie die **genaue Baureihenbezeichnung** ein (z.B. "BMW E30" statt "BMW 3er")
+- Fügen Sie **Jahrgang** hinzu (z.B. "Volkswagen Golf 1974")
+
+### Zu allgemeine Ergebnisse?
+- Verwenden Sie **spezifischere Suchbegriffe**
+- Die App filtert automatisch nach Bildern, die den Modellnamen enthalten
 
 ## Lizenz
 

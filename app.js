@@ -14,10 +14,34 @@ const navButtons = document.querySelectorAll('.nav-btn');
 const categoryGalleries = document.querySelectorAll('.category-gallery');
 
 // ===== Search Queries =====
+// More specific queries that focus on the exact model
 const categoryQueries = {
-    prototype: (model) => `${model} prototype concept`,
-    'first-series': (model) => `${model} first generation`,
-    facelift: (model) => `${model} facelift`
+    prototype: (model) => `${model} prototype concept car`,
+    'first-series': (model) => `${model} first generation original model`,
+    facelift: (model) => `${model} facelift model update`
+};
+
+// Common car model name mappings for better search results
+const modelMappings = {
+    // German to English mappings
+    'VW': 'Volkswagen',
+    'VW Golf': 'Volkswagen Golf',
+    'VW Passat': 'Volkswagen Passat',
+    'VW Polo': 'Volkswagen Polo',
+    'BMW 3er': 'BMW 3 Series',
+    'BMW 5er': 'BMW 5 Series',
+    'BMW 7er': 'BMW 7 Series',
+    'Mercedes C-Klasse': 'Mercedes-Benz C-Class',
+    'Mercedes E-Klasse': 'Mercedes-Benz E-Class',
+    'Mercedes S-Klasse': 'Mercedes-Benz S-Class',
+    'Audi A3': 'Audi A3',
+    'Audi A4': 'Audi A4',
+    'Audi A6': 'Audi A6',
+    'Audi A8': 'Audi A8',
+    'Opel Astra': 'Opel Astra',
+    'Opel Corsa': 'Opel Corsa',
+    'Opel Insignia': 'Opel Insignia',
+    // Add more mappings as needed
 };
 
 // ===== Event Listeners =====
@@ -56,6 +80,9 @@ async function handleSearch() {
         return;
     }
 
+    // Map the model name if needed
+    const mappedModel = modelMappings[model] || model;
+
     // Clear previous results and errors
     clearResults();
     hideError();
@@ -64,13 +91,13 @@ async function handleSearch() {
     try {
         // Search for all categories in parallel
         const [prototypeResults, firstSeriesResults, faceliftResults] = await Promise.all([
-            searchWikipediaImages(model, 'prototype'),
-            searchWikipediaImages(model, 'first-series'),
-            searchWikipediaImages(model, 'facelift')
+            searchWikipediaImages(mappedModel, 'prototype'),
+            searchWikipediaImages(mappedModel, 'first-series'),
+            searchWikipediaImages(mappedModel, 'facelift')
         ]);
         
         // Display results
-        displayResults(model, {
+        displayResults(mappedModel, {
             prototype: prototypeResults,
             'first-series': firstSeriesResults,
             facelift: faceliftResults
@@ -85,43 +112,31 @@ async function handleSearch() {
 }
 
 /**
- * Search Wikipedia for images related to a car model and category
- * Uses Wikipedia's API to search for pages, then extracts images from those pages
+ * Search Wikipedia for images related to a specific car model and category
+ * This version is more specific and tries to find the exact model page
  */
 async function searchWikipediaImages(model, category) {
-    const searchQuery = categoryQueries[category](model);
     const results = [];
     
     try {
-        // First, search for Wikipedia pages matching our query
-        const searchParams = new URLSearchParams({
-            action: 'query',
-            list: 'search',
-            srsearch: searchQuery,
-            format: 'json',
-            origin: '*'
-        });
+        // First, try to find the exact model page
+        const exactPageTitle = await findExactModelPage(model);
         
-        const searchResponse = await fetch(`${WIKIPEDIA_API_URL}?${searchParams}`);
-        const searchData = await searchResponse.json();
-        
-        if (!searchData.query || !searchData.query.search) {
-            console.log(`No Wikipedia pages found for: ${searchQuery}`);
-            return [];
+        if (exactPageTitle) {
+            // If we found an exact page, get images from it with category-specific filtering
+            const categoryImages = await getImagesFromWikipediaPageWithFilter(
+                exactPageTitle, 
+                category,
+                model
+            );
+            results.push(...categoryImages);
         }
         
-        // Get the first few relevant pages
-        const pageTitles = searchData.query.search.slice(0, 5).map(page => page.title);
-        
-        // For each page, get the images
-        for (const title of pageTitles) {
-            const images = await getImagesFromWikipediaPage(title);
-            results.push(...images);
-            
-            // Stop if we have enough results
-            if (results.length >= RESULTS_PER_CATEGORY) {
-                break;
-            }
+        // If we don't have enough results, try a broader search
+        if (results.length < RESULTS_PER_CATEGORY) {
+            const searchQuery = categoryQueries[category](model);
+            const additionalImages = await searchWikipediaWithQuery(searchQuery, model);
+            results.push(...additionalImages);
         }
         
         // Return only the first RESULTS_PER_CATEGORY images
@@ -134,9 +149,93 @@ async function searchWikipediaImages(model, category) {
 }
 
 /**
- * Get images from a specific Wikipedia page
+ * Try to find the exact Wikipedia page for a car model
  */
-async function getImagesFromWikipediaPage(title) {
+async function findExactModelPage(model) {
+    try {
+        // Try different variations of the model name
+        const variations = generateModelVariations(model);
+        
+        for (const variation of variations) {
+            const page = await checkWikipediaPageExists(variation);
+            if (page) {
+                return page;
+            }
+        }
+        
+        return null;
+        
+    } catch (error) {
+        console.error('Error finding exact model page:', error);
+        return null;
+    }
+}
+
+/**
+ * Generate different variations of a model name for searching
+ */
+function generateModelVariations(model) {
+    const variations = [model];
+    
+    // Add "(car)" suffix
+    variations.push(`${model} (car)`);
+    
+    // Add "automobile" suffix
+    variations.push(`${model} automobile`);
+    
+    // Replace spaces with underscores
+    variations.push(model.replace(/\s+/g, '_'));
+    
+    // Add "model" suffix
+    variations.push(`${model} model`);
+    
+    // For German models, try English versions
+    if (model.includes('er')) {
+        variations.push(model.replace(/er$/, ' Series'));
+    }
+    
+    if (model.includes('Klasse')) {
+        variations.push(model.replace(/Klasse/, 'Class'));
+    }
+    
+    return [...new Set(variations)]; // Remove duplicates
+}
+
+/**
+ * Check if a Wikipedia page exists
+ */
+async function checkWikipediaPageExists(title) {
+    try {
+        const params = new URLSearchParams({
+            action: 'query',
+            titles: title,
+            format: 'json',
+            origin: '*'
+        });
+        
+        const response = await fetch(`${WIKIPEDIA_API_URL}?${params}`);
+        const data = await response.json();
+        
+        const pages = data.query.pages;
+        const pageId = Object.keys(pages)[0];
+        
+        // If page exists and is not missing
+        if (pageId !== '-1' && !pages[pageId].missing) {
+            return title;
+        }
+        
+        return null;
+        
+    } catch (error) {
+        console.error(`Error checking page ${title}:`, error);
+        return null;
+    }
+}
+
+/**
+ * Get images from a Wikipedia page with filtering for the specific model
+ */
+async function getImagesFromWikipediaPageWithFilter(pageTitle, category, model) {
     const images = [];
     
     try {
@@ -144,8 +243,8 @@ async function getImagesFromWikipediaPage(title) {
         const contentParams = new URLSearchParams({
             action: 'query',
             prop: 'images',
-            titles: title,
-            imlimit: 20,
+            titles: pageTitle,
+            imlimit: 50,
             format: 'json',
             origin: '*'
         });
@@ -163,15 +262,20 @@ async function getImagesFromWikipediaPage(title) {
         // Get image info for each image on the page
         const imageTitles = pages[pageId].images.map(img => img.title);
         
-        // Get details for each image (URL, thumbnail, etc.)
+        // Filter and get details for relevant images
         for (const imageTitle of imageTitles) {
+            // Skip non-image files
+            if (!isRelevantImage(imageTitle, model, category)) {
+                continue;
+            }
+            
             const imageInfo = await getWikipediaImageInfo(imageTitle);
             if (imageInfo) {
                 images.push(imageInfo);
             }
             
             // Limit the number of images per page
-            if (images.length >= 5) {
+            if (images.length >= RESULTS_PER_CATEGORY) {
                 break;
             }
         }
@@ -179,7 +283,88 @@ async function getImagesFromWikipediaPage(title) {
         return images;
         
     } catch (error) {
-        console.error(`Error getting images from page ${title}:`, error);
+        console.error(`Error getting images from page ${pageTitle}:`, error);
+        return [];
+    }
+}
+
+/**
+ * Check if an image title is relevant for our search
+ */
+function isRelevantImage(imageTitle, model, category) {
+    const lowerImageTitle = imageTitle.toLowerCase();
+    const lowerModel = model.toLowerCase();
+    
+    // Skip non-image files
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp'];
+    const hasImageExtension = imageExtensions.some(ext => lowerImageTitle.endsWith(ext));
+    
+    if (!hasImageExtension) {
+        return false;
+    }
+    
+    // Check if the image title contains the model name
+    const modelKeywords = lowerModel.split(/[\s\-\_]/);
+    const hasModelKeyword = modelKeywords.some(keyword => 
+        lowerImageTitle.includes(keyword) && keyword.length > 2
+    );
+    
+    // For category-specific filtering
+    const categoryKeywords = {
+        prototype: ['prototype', 'concept', 'show car', 'motor show', 'auto show'],
+        'first-series': ['first', 'original', 'debut', 'launch', 'introduction'],
+        facelift: ['facelift', 'refresh', 'update', 'restyle', 'mid-cycle']
+    };
+    
+    const categoryTerms = categoryKeywords[category] || [];
+    const hasCategoryTerm = categoryTerms.some(term => 
+        lowerImageTitle.includes(term)
+    );
+    
+    // Image is relevant if it contains model name or category term
+    return hasModelKeyword || hasCategoryTerm;
+}
+
+/**
+ * Search Wikipedia with a specific query and filter for the model
+ */
+async function searchWikipediaWithQuery(query, model) {
+    const results = [];
+    
+    try {
+        const searchParams = new URLSearchParams({
+            action: 'query',
+            list: 'search',
+            srsearch: query,
+            srlimit: 10,
+            format: 'json',
+            origin: '*'
+        });
+        
+        const searchResponse = await fetch(`${WIKIPEDIA_API_URL}?${searchParams}`);
+        const searchData = await searchResponse.json();
+        
+        if (!searchData.query || !searchData.query.search) {
+            return [];
+        }
+        
+        // Get the first few relevant pages
+        const pageTitles = searchData.query.search.slice(0, 3).map(page => page.title);
+        
+        // For each page, get images that are relevant to our model
+        for (const title of pageTitles) {
+            const images = await getImagesFromWikipediaPageWithFilter(title, 'prototype', model);
+            results.push(...images);
+            
+            if (results.length >= RESULTS_PER_CATEGORY) {
+                break;
+            }
+        }
+        
+        return results;
+        
+    } catch (error) {
+        console.error(`Error searching Wikipedia with query ${query}:`, error);
         return [];
     }
 }
@@ -211,7 +396,7 @@ async function getWikipediaImageInfo(imageTitle) {
         
         const imageInfo = pages[pageId].imageinfo[0];
         
-        // Only include actual images (not PDFs, SVGs without raster, etc.)
+        // Only include actual images (not PDFs, etc.)
         if (!imageInfo.mime || !imageInfo.mime.startsWith('image/')) {
             return null;
         }
@@ -229,13 +414,29 @@ async function getWikipediaImageInfo(imageTitle) {
             fullUrl: imageInfo.url,
             width: imageInfo.thumbwidth || imageInfo.width,
             height: imageInfo.thumbheight || imageInfo.height,
-            description: imageTitle.replace(/\.(jpg|jpeg|png|gif|svg)$/i, '').replace(/_/g, ' ')
+            description: cleanImageDescription(imageTitle)
         };
         
     } catch (error) {
         console.error(`Error getting image info for ${imageTitle}:`, error);
         return null;
     }
+}
+
+/**
+ * Clean up image description for display
+ */
+function cleanImageDescription(title) {
+    // Remove file extension
+    let description = title.replace(/\.(jpg|jpeg|png|gif|svg|webp)$/i, '');
+    
+    // Replace underscores with spaces
+    description = description.replace(/_/g, ' ');
+    
+    // Capitalize first letter
+    description = description.charAt(0).toUpperCase() + description.slice(1);
+    
+    return description;
 }
 
 function displayResults(model, results) {
@@ -250,8 +451,8 @@ function displayResults(model, results) {
         if (images.length === 0) {
             imagesContainer.innerHTML = `
                 <div class="empty-state">
-                    <p>Keine Bilder für <em>${categoryQueries[category](model)}</em> auf Wikipedia gefunden.</p>
-                    <p>Versuchen Sie einen anderen Suchbegriff oder eine andere Schreibweise.</p>
+                    <p>Keine spezifischen Bilder für <em>${model} (${categoryQueries[category](model)})</em> auf Wikipedia gefunden.</p>
+                    <p>Versuchen Sie einen anderen Suchbegriff oder eine genauere Modellbezeichnung.</p>
                 </div>
             `;
         } else {
@@ -319,12 +520,5 @@ function truncateText(text, maxLength) {
     return text.substring(0, maxLength) + '...';
 }
 
-// ===== Demo Mode =====
-// For testing without Wikipedia API (though Wikipedia API doesn't require a key)
-function initDemoMode() {
-    // Wikipedia API works without a key, but we'll add some demo images for testing
-    console.log('Wikipedia API is ready. No API key required.');
-}
-
 // Initialize
-initDemoMode();
+console.log('Auto Bildersuche mit Wikipedia API - bereit!');
