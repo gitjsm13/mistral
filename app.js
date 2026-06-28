@@ -1,7 +1,7 @@
 // ===== Configuration =====
-const UNSPLASH_ACCESS_KEY = 'YOUR_UNSPLASH_ACCESS_KEY'; // Replace with your Unsplash API key
-const UNSPLASH_API_URL = 'https://api.unsplash.com/search/photos';
+const WIKIPEDIA_API_URL = 'https://en.wikipedia.org/w/api.php';
 const RESULTS_PER_CATEGORY = 10;
+const WIKI_THUMB_SIZE = 320; // Thumbnail width in pixels
 
 // ===== DOM Elements =====
 const carModelInput = document.getElementById('carModel');
@@ -15,9 +15,9 @@ const categoryGalleries = document.querySelectorAll('.category-gallery');
 
 // ===== Search Queries =====
 const categoryQueries = {
-    prototype: (model) => `${model} prototype concept car`,
-    'first-series': (model) => `${model} first generation original series production`,
-    facelift: (model) => `${model} facelift refresh redesign update`
+    prototype: (model) => `${model} prototype concept`,
+    'first-series': (model) => `${model} first generation`,
+    facelift: (model) => `${model} facelift`
 };
 
 // ===== Event Listeners =====
@@ -64,9 +64,9 @@ async function handleSearch() {
     try {
         // Search for all categories in parallel
         const [prototypeResults, firstSeriesResults, faceliftResults] = await Promise.all([
-            searchImages(model, 'prototype'),
-            searchImages(model, 'first-series'),
-            searchImages(model, 'facelift')
+            searchWikipediaImages(model, 'prototype'),
+            searchWikipediaImages(model, 'first-series'),
+            searchWikipediaImages(model, 'facelift')
         ]);
         
         // Display results
@@ -84,23 +84,157 @@ async function handleSearch() {
     }
 }
 
-async function searchImages(model, category) {
-    const query = categoryQueries[category](model);
-    const url = `${UNSPLASH_API_URL}?query=${encodeURIComponent(query)}&per_page=${RESULTS_PER_CATEGORY}&client_id=${UNSPLASH_ACCESS_KEY}`;
+/**
+ * Search Wikipedia for images related to a car model and category
+ * Uses Wikipedia's API to search for pages, then extracts images from those pages
+ */
+async function searchWikipediaImages(model, category) {
+    const searchQuery = categoryQueries[category](model);
+    const results = [];
     
     try {
-        const response = await fetch(url);
+        // First, search for Wikipedia pages matching our query
+        const searchParams = new URLSearchParams({
+            action: 'query',
+            list: 'search',
+            srsearch: searchQuery,
+            format: 'json',
+            origin: '*'
+        });
         
-        if (!response.ok) {
-            throw new Error(`API request failed with status ${response.status}`);
+        const searchResponse = await fetch(`${WIKIPEDIA_API_URL}?${searchParams}`);
+        const searchData = await searchResponse.json();
+        
+        if (!searchData.query || !searchData.query.search) {
+            console.log(`No Wikipedia pages found for: ${searchQuery}`);
+            return [];
         }
         
-        const data = await response.json();
-        return data.results || [];
+        // Get the first few relevant pages
+        const pageTitles = searchData.query.search.slice(0, 5).map(page => page.title);
+        
+        // For each page, get the images
+        for (const title of pageTitles) {
+            const images = await getImagesFromWikipediaPage(title);
+            results.push(...images);
+            
+            // Stop if we have enough results
+            if (results.length >= RESULTS_PER_CATEGORY) {
+                break;
+            }
+        }
+        
+        // Return only the first RESULTS_PER_CATEGORY images
+        return results.slice(0, RESULTS_PER_CATEGORY);
         
     } catch (error) {
-        console.error(`Error searching ${category}:`, error);
+        console.error(`Error searching Wikipedia for ${category}:`, error);
         return [];
+    }
+}
+
+/**
+ * Get images from a specific Wikipedia page
+ */
+async function getImagesFromWikipediaPage(title) {
+    const images = [];
+    
+    try {
+        // Get the page content
+        const contentParams = new URLSearchParams({
+            action: 'query',
+            prop: 'images',
+            titles: title,
+            imlimit: 20,
+            format: 'json',
+            origin: '*'
+        });
+        
+        const contentResponse = await fetch(`${WIKIPEDIA_API_URL}?${contentParams}`);
+        const contentData = await contentResponse.json();
+        
+        const pages = contentData.query.pages;
+        const pageId = Object.keys(pages)[0];
+        
+        if (!pages[pageId].images) {
+            return [];
+        }
+        
+        // Get image info for each image on the page
+        const imageTitles = pages[pageId].images.map(img => img.title);
+        
+        // Get details for each image (URL, thumbnail, etc.)
+        for (const imageTitle of imageTitles) {
+            const imageInfo = await getWikipediaImageInfo(imageTitle);
+            if (imageInfo) {
+                images.push(imageInfo);
+            }
+            
+            // Limit the number of images per page
+            if (images.length >= 5) {
+                break;
+            }
+        }
+        
+        return images;
+        
+    } catch (error) {
+        console.error(`Error getting images from page ${title}:`, error);
+        return [];
+    }
+}
+
+/**
+ * Get information about a specific Wikipedia image
+ */
+async function getWikipediaImageInfo(imageTitle) {
+    try {
+        const imageParams = new URLSearchParams({
+            action: 'query',
+            prop: 'imageinfo',
+            titles: imageTitle,
+            iiprop: 'url|thumburl|size|mime',
+            iiurlwidth: WIKI_THUMB_SIZE,
+            format: 'json',
+            origin: '*'
+        });
+        
+        const imageResponse = await fetch(`${WIKIPEDIA_API_URL}?${imageParams}`);
+        const imageData = await imageResponse.json();
+        
+        const pages = imageData.query.pages;
+        const pageId = Object.keys(pages)[0];
+        
+        if (!pages[pageId].imageinfo) {
+            return null;
+        }
+        
+        const imageInfo = pages[pageId].imageinfo[0];
+        
+        // Only include actual images (not PDFs, SVGs without raster, etc.)
+        if (!imageInfo.mime || !imageInfo.mime.startsWith('image/')) {
+            return null;
+        }
+        
+        // Prefer thumbnail URL, fall back to full URL
+        const imageUrl = imageInfo.thumburl || imageInfo.url;
+        
+        if (!imageUrl) {
+            return null;
+        }
+        
+        return {
+            title: imageTitle,
+            url: imageUrl,
+            fullUrl: imageInfo.url,
+            width: imageInfo.thumbwidth || imageInfo.width,
+            height: imageInfo.thumbheight || imageInfo.height,
+            description: imageTitle.replace(/\.(jpg|jpeg|png|gif|svg)$/i, '').replace(/_/g, ' ')
+        };
+        
+    } catch (error) {
+        console.error(`Error getting image info for ${imageTitle}:`, error);
+        return null;
     }
 }
 
@@ -116,22 +250,23 @@ function displayResults(model, results) {
         if (images.length === 0) {
             imagesContainer.innerHTML = `
                 <div class="empty-state">
-                    <p>Keine Bilder für <em>${categoryQueries[category](model)}</em> gefunden.</p>
-                    <p>Versuchen Sie einen anderen Suchbegriff.</p>
+                    <p>Keine Bilder für <em>${categoryQueries[category](model)}</em> auf Wikipedia gefunden.</p>
+                    <p>Versuchen Sie einen anderen Suchbegriff oder eine andere Schreibweise.</p>
                 </div>
             `;
         } else {
             imagesContainer.innerHTML = images.map(image => `
                 <div class="image-card">
                     <img 
-                        src="${image.urls.small}" 
-                        alt="${image.alt_description || 'Auto Bild'}" 
+                        src="${image.url}" 
+                        alt="${image.description}" 
                         loading="lazy"
+                        onerror="this.style.display='none'"
                     >
                     <div class="image-card-info">
-                        <p>${truncateText(image.alt_description || 'Auto Bild', 50)}</p>
-                        <a href="${image.links.html}?utm_source=auto_bildersuche&utm_medium=referral" target="_blank">
-                            Foto ansehen auf Unsplash
+                        <p>${truncateText(image.description, 50)}</p>
+                        <a href="${image.fullUrl || image.url}" target="_blank" rel="noopener noreferrer">
+                            Bild ansehen auf Wikipedia
                         </a>
                     </div>
                 </div>
@@ -179,43 +314,17 @@ function clearResults() {
 }
 
 function truncateText(text, maxLength) {
+    if (!text) return 'Auto Bild';
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + '...';
 }
 
-// ===== Demo Mode (for testing without API key) =====
-// If no API key is provided, use demo mode with placeholder images
+// ===== Demo Mode =====
+// For testing without Wikipedia API (though Wikipedia API doesn't require a key)
 function initDemoMode() {
-    if (!UNSPLASH_ACCESS_KEY || UNSPLASH_ACCESS_KEY === 'YOUR_UNSPLASH_ACCESS_KEY') {
-        console.log('Running in demo mode. Add your Unsplash API key to enable real searches.');
-        
-        // Override search function for demo mode
-        window.searchImages = async function(model, category) {
-            // Return mock data for demo
-            const mockImages = [
-                {
-                    urls: { small: 'https://images.unsplash.com/photo-1542362567-b07e54358753?w=400' },
-                    alt_description: `${model} ${category} view 1`,
-                    links: { html: 'https://unsplash.com/photos/example1' }
-                },
-                {
-                    urls: { small: 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=400' },
-                    alt_description: `${model} ${category} view 2`,
-                    links: { html: 'https://unsplash.com/photos/example2' }
-                },
-                {
-                    urls: { small: 'https://images.unsplash.com/photo-1580273916550-e323be2ae537?w=400' },
-                    alt_description: `${model} ${category} view 3`,
-                    links: { html: 'https://unsplash.com/photos/example3' }
-                }
-            ];
-            
-            // Return different number of images for each category to simulate real results
-            const count = Math.min(3 + Math.floor(Math.random() * 4), 10);
-            return mockImages.slice(0, count);
-        };
-    }
+    // Wikipedia API works without a key, but we'll add some demo images for testing
+    console.log('Wikipedia API is ready. No API key required.');
 }
 
-// Initialize demo mode
+// Initialize
 initDemoMode();
