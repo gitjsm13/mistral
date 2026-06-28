@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto Bildersuche</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚗 Auto Bildersuche</h1>
+            <p class="subtitle">Finde Bilder von Prototypen, Serienmodellen und Facelifts</p>
+        </header>
+
+        <main>
+            <div class="search-section">
+                <div class="search-box">
+                    <input 
+                        type="text" 
+                        id="carModel" 
+                        placeholder="Geben Sie ein Automodell ein..." 
+                        autocomplete="off"
+                    >
+                    <button id="searchBtn" class="btn btn-primary">
+                        <span class="btn-icon">🔍</span> Suchen
+                    </button>
+                </div>
+                <p class="hint">Beispiele: BMW 3er, Mercedes C-Klasse, Volkswagen Golf, Porsche 911</p>
+            </div>
+
+            <div id="loading" class="loading hidden">
+                <div class="spinner"></div>
+                <p>Suche nach Bildern...</p>
+            </div>
+
+            <div id="error" class="error-message hidden"></div>
+
+            <div id="results" class="results-section hidden">
+                <div class="results-header">
+                    <h2>Ergebnisse für: <span id="searchTerm"></span></h2>
+                    <div class="results-nav">
+                        <button class="nav-btn active" data-category="prototype">Prototypen</button>
+                        <button class="nav-btn" data-category="first-series">Erste Serienmodelle</button>
+                        <button class="nav-btn" data-category="facelift">Facelifts</button>
+                    </div>
+                </div>
+
+                <div class="gallery">
+                    <div id="prototype" class="category-gallery active">
+                        <h3>🚀 Prototypen</h3>
+                        <div class="images-grid" id="prototype-images"></div>
+                    </div>
+                    <div id="first-series" class="category-gallery">
+                        <h3>🏭 Erste Serienmodelle</h3>
+                        <div class="images-grid" id="first-series-images"></div>
+                    </div>
+                    <div id="facelift" class="category-gallery">
+                        <h3>✨ Facelifts</h3>
+                        <div class="images-grid" id="facelift-images"></div>
+                    </div>
+                </div>
+
+                <div class="results-footer">
+                    <p>Bilder von <a href="https://unsplash.com" target="_blank">Unsplash</a></p>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>Auto Bildersuche &copy; 2024 | API: Unsplash</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
